@@ -1,0 +1,57 @@
+name: flyer
+on:
+  repository_dispatch:
+    types: [flyer]
+jobs:
+  macos:
+    runs-on: macOS-latest
+    steps:
+      - id: variables
+        name: set build_id variable
+        run: |
+          build_id="${{ github.event.client_payload.uuid }}"
+          echo "::set-output name=BUILD_ID::$build_id"
+          type="${{ github.event.client_payload.type }}"
+          echo "::set-output name=TYPE::$type"
+      - name: download fonts
+        run: |
+          curl -OL "${{ secrets.CLOUDFRONT }}/fonts.zip"
+          unzip fonts.zip
+      - name: install fonts
+        run: |
+          chmod -R +x "fonts/"
+          sudo cp -a "fonts/." "/Library/Fonts"
+      - name: download & install sketch
+        run: |
+          curl -OL "${{ secrets.CLOUDFRONT }}/sketch.zip"
+          unzip sketch.zip
+      - name: download & unzip flyer
+        run: |
+          curl -OL "${{ secrets.CLOUDFRONT }}/flyers/${{ steps.variables.outputs.BUILD_ID }}.zip"
+          unzip "${{ steps.variables.outputs.BUILD_ID }}.zip" -d "${{ steps.variables.outputs.BUILD_ID }}"
+      - name: export into pdfs
+        run: |
+          cd "${{ steps.variables.outputs.BUILD_ID }}"
+          ./../Sketch.app/Contents/Resources/sketchtool/bin/sketchtool export artboards "${{ steps.variables.outputs.BUILD_ID }}.sketch"  --formats=pdf --overwriting=YES --use-id-for-name
+      - name: merge into pdf
+        run: |
+          cd "${{ steps.variables.outputs.BUILD_ID }}"
+          rm -rf Symbols.pdf
+          /System/Library/Automator/Combine\ PDF\ Pages.action/Contents/Resources/join.py --output ./../flyer.pdf *.pdf
+      - name: upload s3
+        run: |
+          aws configure set aws_access_key_id "${{ secrets.S3_ACCESS_KEY }}"
+          aws configure set aws_secret_access_key "${{ secrets.S3_SECRET_KEY }}"
+          aws configure set region "eu-west-2"
+          aws s3 cp flyer.pdf "${{ secrets.S3_FOLDER }}flyers/${{ steps.variables.outputs.BUILD_ID }}.pdf"
+      - name: clean
+        run: |
+          rm -rf book.pdf
+          rm -rf flyer.pdf
+          rm -rf "${{ steps.variables.outputs.BUILD_ID }}"
+          rm -rf "${{ steps.variables.outputs.BUILD_ID }}.zip"
+          rm -rf sketch.zip
+          rm -rf Sketch.app
+      - name: webhook
+        run: |
+          curl -X POST "${{ secrets.ENDPOINT }}" -H 'Content-Type: application/json' -d '{"uuid":"${{ steps.variables.outputs.BUILD_ID }}", "type":"${{ steps.variables.outputs.TYPE }}"}'
