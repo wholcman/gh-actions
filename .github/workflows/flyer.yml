@@ -4,10 +4,10 @@ on:
     types: [flyer]
 jobs:
   macos:
-    runs-on: macOS-latest
+    runs-on: macos-11
     steps:
       - id: variables
-        name: set build_id variable
+        name: set variables
         run: |
           build_id="${{ github.event.client_payload.uuid }}"
           echo "::set-output name=BUILD_ID::$build_id"
@@ -44,14 +44,6 @@ jobs:
           aws configure set aws_secret_access_key "${{ secrets.S3_SECRET_KEY }}"
           aws configure set region "eu-west-2"
           aws s3 cp flyer.pdf "${{ secrets.S3_FOLDER }}flyers/${{ steps.variables.outputs.BUILD_ID }}.pdf"
-      - name: clean
-        run: |
-          rm -rf book.pdf
-          rm -rf flyer.pdf
-          rm -rf "${{ steps.variables.outputs.BUILD_ID }}"
-          rm -rf "${{ steps.variables.outputs.BUILD_ID }}.zip"
-          rm -rf sketch.zip
-          rm -rf Sketch.app
       - name: webhook
         run: |
           curl -X POST "${{ secrets.ENDPOINT }}" -H 'Content-Type: application/json' -d '{"uuid":"${{ steps.variables.outputs.BUILD_ID }}", "type":"${{ steps.variables.outputs.TYPE }}"}'
