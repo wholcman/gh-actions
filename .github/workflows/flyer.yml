@@ -37,7 +37,7 @@ jobs:
         run: |
           cd "${{ steps.variables.outputs.BUILD_ID }}"
           rm -rf Symbols.pdf
-          brew install pdftk
+          brew install pdftk-java
           pdftk $(\ls -v *.pdf) output ./../flyer.pdf
       - name: upload s3
         run: |
